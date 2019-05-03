@@ -1,0 +1,8 @@
+language: go
+
+# Skip default Go install step
+install: true
+
+script:
+  - cd src
+  - ./all.bash

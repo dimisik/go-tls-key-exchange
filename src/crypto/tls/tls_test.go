@@ -678,6 +678,21 @@ func TestCloneFuncFields(t *testing.T) {
 	}
 }
 
+// dummyKeyExchangeHandler is used in TestCloneNonFuncFields
+type dummyKeyExchangeHandler struct{}
+
+func (dummyKeyExchangeHandler) ClientShare() ([]byte, ClientShareContext, error) {
+	panic("not used")
+}
+
+func (dummyKeyExchangeHandler) SecretFromClientShare(clientShare []byte) (secret, serverShare []byte, err error) {
+	panic("not used")
+}
+
+func (dummyKeyExchangeHandler) SecretFromServerShare(serverShare []byte, ctx ClientShareContext) ([]byte, error) {
+	panic("not used")
+}
+
 func TestCloneNonFuncFields(t *testing.T) {
 	var c1 Config
 	v := reflect.ValueOf(&c1).Elem()
@@ -730,6 +745,8 @@ func TestCloneNonFuncFields(t *testing.T) {
 			f.Set(reflect.ValueOf([]CurveID{CurveP256}))
 		case "Renegotiation":
 			f.Set(reflect.ValueOf(RenegotiateOnceAsClient))
+		case "PrivateKeyExchanges":
+			f.Set(reflect.ValueOf(map[CurveID]PrivateKeyExchange{CurveP256: dummyKeyExchangeHandler{}}))
 		default:
 			t.Errorf("all fields must be accounted for, but saw unknown field %q", fn)
 		}

@@ -596,6 +596,33 @@ type Config struct {
 	// for new tickets and any subsequent keys can be used to decrypt old
 	// tickets.
 	sessionTicketKeys []ticketKey
+
+	// PrivateKeyExchanges are TLS 1.3 key exchange implementations
+	// for private named groups. The CurveIDs must be from the ecdhe_private_use range
+	// (see RFC 8446 section 4.2.7). To enable these private groups, include their
+	// CurveID in the CurvePreferences field.
+	PrivateKeyExchanges map[CurveID]PrivateKeyExchange
+}
+
+// A ClientShareContext stores client state relating to an ongoing key exchange.
+type ClientShareContext interface{}
+
+// A PrivateKeyExchange implements a TLS 1.3 key exchange mechanism.
+type PrivateKeyExchange interface {
+
+	// ClientShare initiates the key exchange and returns the client key
+	// share. The returned context will be passed to SecretFromServerShare,
+	// allowing the client to retain state (such as ephemeral keys) during the exchange.
+	ClientShare() ([]byte, ClientShareContext, error)
+
+	// SecretFromClientShare is called by the server to process the share from
+	// the client. It generates (or deduces) the TLS secret and returns this, along with
+	// its own share, which is sent to the client.
+	SecretFromClientShare(clientShare []byte) (secret, serverShare []byte, err error)
+
+	// SecretFromServerShare uses the server key share and the previously generated
+	// context to deduce the TLS secret, which is returned.
+	SecretFromServerShare(serverShare []byte, ctx ClientShareContext) ([]byte, error)
 }
 
 // ticketKeyNameLen is the number of bytes of identifier that is prepended to
@@ -665,6 +692,7 @@ func (c *Config) Clone() *Config {
 		Renegotiation:               c.Renegotiation,
 		KeyLogWriter:                c.KeyLogWriter,
 		sessionTicketKeys:           sessionTicketKeys,
+		PrivateKeyExchanges:         c.PrivateKeyExchanges,
 	}
 }
 

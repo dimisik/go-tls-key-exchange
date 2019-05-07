@@ -16,10 +16,11 @@ import (
 )
 
 type clientHandshakeStateTLS13 struct {
-	c           *Conn
-	serverHello *serverHelloMsg
-	hello       *clientHelloMsg
-	ecdheParams ecdheParameters
+	c               *Conn
+	serverHello     *serverHelloMsg
+	hello           *clientHelloMsg
+	ecdheParams     ecdheParameters
+	exchangeContext PrivateExchangeContext
 
 	session     *ClientSessionState
 	earlySecret []byte
@@ -210,17 +211,29 @@ func (hs *clientHandshakeStateTLS13) processHelloRetryRequest() error {
 		c.sendAlert(alertIllegalParameter)
 		return errors.New("tls: server sent an unnecessary HelloRetryRequest message")
 	}
-	if _, ok := curveForCurveID(curveID); curveID != X25519 && !ok {
+	if _, ok := curveForCurveID(curveID); curveID != X25519 && !ok && !privateCurve(curveID, c.config.PrivateKeyExchanges) {
 		c.sendAlert(alertInternalError)
 		return errors.New("tls: CurvePreferences includes unsupported curve")
 	}
-	params, err := generateECDHEParameters(c.config.rand(), curveID)
-	if err != nil {
-		c.sendAlert(alertInternalError)
-		return err
+
+	if privateCurve(curveID, c.config.PrivateKeyExchanges) {
+		share, context, err := c.config.PrivateKeyExchanges[curveID].ClientShare()
+		if err != nil {
+			c.sendAlert(alertInternalError)
+			return errors.New("tls: failed to generate client share")
+		}
+
+		hs.exchangeContext = context
+		hs.hello.keyShares = []keyShare{{group: curveID, data: share}}
+	} else {
+		params, err := generateECDHEParameters(c.config.rand(), curveID)
+		if err != nil {
+			c.sendAlert(alertInternalError)
+			return err
+		}
+		hs.ecdheParams = params
+		hs.hello.keyShares = []keyShare{{group: curveID, data: params.PublicKey()}}
 	}
-	hs.ecdheParams = params
-	hs.hello.keyShares = []keyShare{{group: curveID, data: params.PublicKey()}}
 
 	hs.hello.cookie = hs.serverHello.cookie
 

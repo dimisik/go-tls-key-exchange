@@ -49,6 +49,15 @@ func allCipherSuites() []uint16 {
 	return ids
 }
 
+func allCipherSuitesTLS13() []uint16 {
+	ids := make([]uint16, len(cipherSuitesTLS13))
+	for i, suite := range cipherSuitesTLS13 {
+		ids[i] = suite.id
+	}
+
+	return ids
+}
+
 func init() {
 	testConfig = &Config{
 		Time:               func() time.Time { return time.Unix(0, 0) },
@@ -98,6 +107,35 @@ func testClientHelloFailure(t *testing.T, serverConfig *Config, m handshakeMessa
 	}
 	if err == nil {
 		err = hs.pickCipherSuite()
+	}
+	s.Close()
+	if len(expectedSubStr) == 0 {
+		if err != nil && err != io.EOF {
+			t.Errorf("Got error: %s; expected to succeed", err)
+		}
+	} else if err == nil || !strings.Contains(err.Error(), expectedSubStr) {
+		t.Errorf("Got error: %v; expected to match substring '%s'", err, expectedSubStr)
+	}
+}
+
+func testClientHelloFailureTLS13(t *testing.T, serverConfig *Config, m handshakeMessage, expectedSubStr string) {
+	c, s := localPipe(t)
+	go func() {
+		cli := Client(c, testConfig)
+		if ch, ok := m.(*clientHelloMsg); ok {
+			cli.vers = ch.vers
+		}
+		cli.writeRecord(recordTypeHandshake, m.marshal())
+		c.Close()
+	}()
+	conn := Server(s, serverConfig)
+	ch, err := conn.readClientHello()
+	hs := serverHandshakeStateTLS13{
+		c:           conn,
+		clientHello: ch,
+	}
+	if err == nil {
+		err = hs.processClientHello()
 	}
 	s.Close()
 	if len(expectedSubStr) == 0 {
@@ -1739,4 +1777,27 @@ T+E0J8wlH24pgwQHzy7Ko2qLwn1b5PW8ecrlvP1g
 		t.Errorf(`expected "handshake failure", got %q`, err)
 	}
 	<-done
+}
+
+func TestDontAllowNonPrivateRangeKeyExchange(t *testing.T) {
+	// Test that a private key exchange is not allowed if it's outside the
+	// ecdhe_private_use range.
+
+	const badCurveID = ecdhePrivateUseMin - 1
+
+	clientHello := &clientHelloMsg{
+		vers:               VersionTLS12, // RFC 8446 states this must be set to TLS v1.2
+		supportedVersions:  []uint16{VersionTLS13},
+		random:             make([]byte, 32),
+		supportedCurves:    []CurveID{badCurveID},
+		compressionMethods: []uint8{compressionNone},
+		cipherSuites:       allCipherSuitesTLS13(),
+		keyShares:          []keyShare{{group: badCurveID, data: []byte{0}}},
+	}
+	serverConfig := testConfig.Clone()
+
+	serverConfig.PrivateKeyExchanges = map[CurveID]PrivateKeyExchange{badCurveID: dummyKeyExchangeHandler{}}
+	serverConfig.CurvePreferences = []CurveID{badCurveID}
+
+	testClientHelloFailureTLS13(t, serverConfig, clientHello, "CurvePreferences includes unsupported curve")
 }

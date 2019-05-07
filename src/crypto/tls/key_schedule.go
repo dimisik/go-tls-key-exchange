@@ -145,6 +145,21 @@ func curveForCurveID(id CurveID) (elliptic.Curve, bool) {
 	}
 }
 
+const (
+	ecdhePrivateUseMin = 0xFE00
+	ecdhePrivateUseMax = 0xFEFF
+)
+
+// privateCurve tests if the curve is within the ecdhe_private_use ranged defined in
+// RFC 8446, Section 4.2.7 and is supported by a PrivateKeyExchange.
+func privateCurve(id CurveID, privateKeyExchanges map[CurveID]PrivateKeyExchange) bool {
+	if id >= ecdhePrivateUseMin && id <= ecdhePrivateUseMax {
+		_, found := privateKeyExchanges[id]
+		return found
+	}
+	return false
+}
+
 type nistParameters struct {
 	privateKey []byte
 	x, y       *big.Int // public key

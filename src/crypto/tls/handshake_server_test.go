@@ -1801,3 +1801,23 @@ func TestDontAllowNonPrivateRangeKeyExchange(t *testing.T) {
 
 	testClientHelloFailureTLS13(t, serverConfig, clientHello, "CurvePreferences includes unsupported curve")
 }
+
+func TestDontAllowNilPrivateKeyExchange(t *testing.T) {
+	// Test that a private key exchange cannot be nil
+
+	clientHello := &clientHelloMsg{
+		vers:               VersionTLS12, // RFC 8446 states this must be set to TLS v1.2
+		supportedVersions:  []uint16{VersionTLS13},
+		random:             make([]byte, 32),
+		supportedCurves:    []CurveID{ecdhePrivateUseMin},
+		compressionMethods: []uint8{compressionNone},
+		cipherSuites:       allCipherSuitesTLS13(),
+		keyShares:          []keyShare{{group: ecdhePrivateUseMin, data: []byte{0}}},
+	}
+	serverConfig := testConfig.Clone()
+
+	serverConfig.PrivateKeyExchanges = map[CurveID]PrivateKeyExchange{ecdhePrivateUseMin: nil}
+	serverConfig.CurvePreferences = []CurveID{ecdhePrivateUseMin}
+
+	testClientHelloFailureTLS13(t, serverConfig, clientHello, "PrivateKeyExchange is nil")
+}

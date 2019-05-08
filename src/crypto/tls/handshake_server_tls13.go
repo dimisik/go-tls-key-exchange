@@ -209,7 +209,13 @@ GroupSelection:
 	}
 
 	if privateCurve(selectedGroup, c.config.PrivateKeyExchanges) {
-		secret, share, err := c.config.PrivateKeyExchanges[selectedGroup].SecretFromClientShare(clientKeyShare.data)
+		keyExchange := c.config.PrivateKeyExchanges[selectedGroup]
+		if keyExchange == nil {
+			c.sendAlert(alertInternalError)
+			return errors.New("tls: PrivateKeyExchange is nil")
+		}
+
+		secret, share, err := keyExchange.SecretFromClientShare(clientKeyShare.data)
 		if err != nil {
 			c.sendAlert(alertInternalError)
 			return errors.New("tls: invalid client key share")

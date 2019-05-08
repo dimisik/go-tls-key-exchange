@@ -118,7 +118,11 @@ func testClientHelloFailure(t *testing.T, serverConfig *Config, m handshakeMessa
 	}
 }
 
-func testClientHelloFailureTLS13(t *testing.T, serverConfig *Config, m handshakeMessage, expectedSubStr string) {
+func testClientHelloTLS13(t *testing.T, serverConfig *Config, m handshakeMessage) serverHandshakeStateTLS13 {
+	return testClientHelloFailureTLS13(t, serverConfig, m, "")
+}
+
+func testClientHelloFailureTLS13(t *testing.T, serverConfig *Config, m handshakeMessage, expectedSubStr string) serverHandshakeStateTLS13 {
 	c, s := localPipe(t)
 	go func() {
 		cli := Client(c, testConfig)
@@ -145,6 +149,8 @@ func testClientHelloFailureTLS13(t *testing.T, serverConfig *Config, m handshake
 	} else if err == nil || !strings.Contains(err.Error(), expectedSubStr) {
 		t.Errorf("Got error: %v; expected to match substring '%s'", err, expectedSubStr)
 	}
+
+	return hs
 }
 
 func TestSimpleError(t *testing.T) {
@@ -1892,4 +1898,62 @@ func TestDontAllowNilPrivateKeyExchange(t *testing.T) {
 	serverConfig.CurvePreferences = []CurveID{ecdhePrivateUseMin}
 
 	testClientHelloFailureTLS13(t, serverConfig, clientHello, "PrivateKeyExchange is nil")
+}
+
+func TestPrivateKeyExchangeSuccessful(t *testing.T) {
+	// Test successful execution of a private key exchange
+
+	clientShare := []byte("clientShare")
+
+	clientHello := &clientHelloMsg{
+		vers:               VersionTLS12, // RFC 8446 states this must be set to TLS v1.2
+		supportedVersions:  []uint16{VersionTLS13},
+		random:             make([]byte, 32),
+		supportedCurves:    []CurveID{ecdhePrivateUseMin},
+		compressionMethods: []uint8{compressionNone},
+		cipherSuites:       allCipherSuitesTLS13(),
+		keyShares:          []keyShare{{group: ecdhePrivateUseMin, data: clientShare}},
+	}
+	serverConfig := testConfig.Clone()
+
+	keyExchange := &recordingKeyExchange{}
+	serverConfig.PrivateKeyExchanges = map[CurveID]PrivateKeyExchange{ecdhePrivateUseMin: keyExchange}
+	serverConfig.CurvePreferences = []CurveID{ecdhePrivateUseMin}
+
+	hs := testClientHelloTLS13(t, serverConfig, clientHello)
+
+	if !bytes.Equal(clientShare, keyExchange.clientShare) {
+		t.Errorf("expected %x for clientShare, got %x", clientShare, keyExchange.clientShare)
+	}
+	if !bytes.Equal(keyExchange.secret, hs.sharedKey) {
+		t.Errorf("expected %x for sharedKey, got %x", keyExchange.secret, hs.sharedKey)
+	}
+	if !bytes.Equal(keyExchange.serverShare, hs.hello.serverShare.data) {
+		t.Errorf("expected %x for serverShare.data, got %x", keyExchange.serverShare, hs.hello.serverShare.data)
+	}
+	if ecdhePrivateUseMin != hs.hello.serverShare.group {
+		t.Errorf("expected %d for serverShare.group, got %d", ecdhePrivateUseMin, hs.hello.serverShare.group)
+	}
+}
+
+type recordingKeyExchange struct {
+	t           *testing.T
+	secret      []byte
+	serverShare []byte
+	clientShare []byte
+}
+
+func (r *recordingKeyExchange) ClientShare() ([]byte, PrivateExchangeContext, error) {
+	panic("ClientShare called")
+}
+
+func (r *recordingKeyExchange) SecretFromClientShare(clientShare []byte) (secret, serverShare []byte, err error) {
+	r.clientShare = clientShare
+	r.secret = []byte("secret")
+	r.serverShare = []byte("share")
+	return r.secret, r.serverShare, nil
+}
+
+func (r *recordingKeyExchange) SecretFromServerShare(serverShare []byte, ctx PrivateExchangeContext) ([]byte, error) {
+	panic("SecretFromServerShare called")
 }

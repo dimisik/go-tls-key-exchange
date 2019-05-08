@@ -31,27 +31,27 @@ type clientHandshakeState struct {
 	session      *ClientSessionState
 }
 
-func (c *Conn) makeClientHello() (*clientHelloMsg, ecdheParameters, error) {
+func (c *Conn) makeClientHello() (*clientHelloMsg, ecdheParameters, PrivateExchangeContext, error) {
 	config := c.config
 	if len(config.ServerName) == 0 && !config.InsecureSkipVerify {
-		return nil, nil, errors.New("tls: either ServerName or InsecureSkipVerify must be specified in the tls.Config")
+		return nil, nil, nil, errors.New("tls: either ServerName or InsecureSkipVerify must be specified in the tls.Config")
 	}
 
 	nextProtosLength := 0
 	for _, proto := range config.NextProtos {
 		if l := len(proto); l == 0 || l > 255 {
-			return nil, nil, errors.New("tls: invalid NextProtos value")
+			return nil, nil, nil, errors.New("tls: invalid NextProtos value")
 		} else {
 			nextProtosLength += 1 + l
 		}
 	}
 	if nextProtosLength > 0xffff {
-		return nil, nil, errors.New("tls: NextProtos values too large")
+		return nil, nil, nil, errors.New("tls: NextProtos values too large")
 	}
 
 	supportedVersions := config.supportedVersions(true)
 	if len(supportedVersions) == 0 {
-		return nil, nil, errors.New("tls: no supported versions satisfy MinVersion and MaxVersion")
+		return nil, nil, nil, errors.New("tls: no supported versions satisfy MinVersion and MaxVersion")
 	}
 
 	clientHelloVersion := supportedVersions[0]
@@ -103,14 +103,14 @@ NextCipherSuite:
 
 	_, err := io.ReadFull(config.rand(), hello.random)
 	if err != nil {
-		return nil, nil, errors.New("tls: short read from Rand: " + err.Error())
+		return nil, nil, nil, errors.New("tls: short read from Rand: " + err.Error())
 	}
 
 	// A random session ID is used to detect when the server accepted a ticket
 	// and is resuming a session (see RFC 5077). In TLS 1.3, it's always set as
 	// a compatibility measure (see RFC 8446, Section 4.1.2).
 	if _, err := io.ReadFull(config.rand(), hello.sessionId); err != nil {
-		return nil, nil, errors.New("tls: short read from Rand: " + err.Error())
+		return nil, nil, nil, errors.New("tls: short read from Rand: " + err.Error())
 	}
 
 	if hello.vers >= VersionTLS12 {
@@ -118,21 +118,38 @@ NextCipherSuite:
 	}
 
 	var params ecdheParameters
+	var context PrivateExchangeContext
 	if hello.supportedVersions[0] == VersionTLS13 {
 		hello.cipherSuites = append(hello.cipherSuites, defaultCipherSuitesTLS13()...)
 
 		curveID := config.curvePreferences()[0]
-		if _, ok := curveForCurveID(curveID); curveID != X25519 && !ok {
-			return nil, nil, errors.New("tls: CurvePreferences includes unsupported curve")
+		if _, ok := curveForCurveID(curveID); curveID != X25519 && !ok && !privateCurve(curveID, config.PrivateKeyExchanges) {
+			return nil, nil, nil, errors.New("tls: CurvePreferences includes unsupported curve")
 		}
-		params, err = generateECDHEParameters(config.rand(), curveID)
-		if err != nil {
-			return nil, nil, err
+
+		if privateCurve(curveID, config.PrivateKeyExchanges) {
+			keyExchange := config.PrivateKeyExchanges[curveID]
+			if keyExchange == nil {
+				return nil, nil, nil, errors.New("tls: PrivateKeyExchange is nil")
+			}
+
+			var share []byte
+			share, context, err = keyExchange.ClientShare()
+			if err != nil {
+				return nil, nil, nil, errors.New("tls: Failed to generate client share")
+			}
+			hello.keyShares = []keyShare{{group: curveID, data: share}}
+
+		} else {
+			params, err = generateECDHEParameters(config.rand(), curveID)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			hello.keyShares = []keyShare{{group: curveID, data: params.PublicKey()}}
 		}
-		hello.keyShares = []keyShare{{group: curveID, data: params.PublicKey()}}
 	}
 
-	return hello, params, nil
+	return hello, params, context, nil
 }
 
 func (c *Conn) clientHandshake() (err error) {
@@ -144,7 +161,7 @@ func (c *Conn) clientHandshake() (err error) {
 	// need to be reset.
 	c.didResume = false
 
-	hello, ecdheParams, err := c.makeClientHello()
+	hello, ecdheParams, context, err := c.makeClientHello()
 	if err != nil {
 		return err
 	}
@@ -185,13 +202,14 @@ func (c *Conn) clientHandshake() (err error) {
 
 	if c.vers == VersionTLS13 {
 		hs := &clientHandshakeStateTLS13{
-			c:           c,
-			serverHello: serverHello,
-			hello:       hello,
-			ecdheParams: ecdheParams,
-			session:     session,
-			earlySecret: earlySecret,
-			binderKey:   binderKey,
+			c:               c,
+			serverHello:     serverHello,
+			hello:           hello,
+			ecdheParams:     ecdheParams,
+			session:         session,
+			earlySecret:     earlySecret,
+			binderKey:       binderKey,
+			exchangeContext: context,
 		}
 
 		// In TLS 1.3, session tickets are delivered after the handshake.

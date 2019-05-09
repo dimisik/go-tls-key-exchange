@@ -215,19 +215,28 @@ func (hs *clientHandshakeStateTLS13) processHelloRetryRequest() error {
 		c.sendAlert(alertIllegalParameter)
 		return errors.New("tls: server sent an unnecessary HelloRetryRequest message")
 	}
-	if _, ok := curveForCurveID(curveID); curveID != X25519 && !ok && !privateCurve(curveID, c.config.PrivateKeyExchanges) {
+	if privateCurve(curveID) {
+		var found bool
+		hs.privateKeyExchange, found = c.config.PrivateKeyExchanges[curveID]
+		if !found {
+			c.sendAlert(alertInternalError)
+			return errors.New("tls: CurvePreferences includes unsupported curve")
+		}
+		if hs.privateKeyExchange == nil {
+			c.sendAlert(alertInternalError)
+			return errors.New("tls: PrivateKeyExchange is nil")
+		}
+	} else if _, ok := curveForCurveID(curveID); curveID != X25519 && !ok {
 		c.sendAlert(alertInternalError)
 		return errors.New("tls: CurvePreferences includes unsupported curve")
 	}
 
-	if privateCurve(curveID, c.config.PrivateKeyExchanges) {
-		hs.privateKeyExchange = c.config.PrivateKeyExchanges[curveID]
+	if privateCurve(curveID) {
 		share, err := hs.privateKeyExchange.ClientShare()
 		if err != nil {
 			c.sendAlert(alertInternalError)
 			return errors.New("tls: failed to generate client share")
 		}
-
 		hs.hello.keyShares = []keyShare{{group: curveID, data: share}}
 	} else {
 		params, err := generateECDHEParameters(c.config.rand(), curveID)

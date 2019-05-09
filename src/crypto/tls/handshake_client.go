@@ -31,7 +31,7 @@ type clientHandshakeState struct {
 	session      *ClientSessionState
 }
 
-func (c *Conn) makeClientHello() (*clientHelloMsg, ecdheParameters, PrivateExchangeContext, error) {
+func (c *Conn) makeClientHello() (*clientHelloMsg, ecdheParameters, PrivateKeyExchange, error) {
 	config := c.config
 	if len(config.ServerName) == 0 && !config.InsecureSkipVerify {
 		return nil, nil, nil, errors.New("tls: either ServerName or InsecureSkipVerify must be specified in the tls.Config")
@@ -117,7 +117,7 @@ func (c *Conn) makeClientHello() (*clientHelloMsg, ecdheParameters, PrivateExcha
 	}
 
 	var params ecdheParameters
-	var context PrivateExchangeContext
+	var pke PrivateKeyExchange
 	if hello.supportedVersions[0] == VersionTLS13 {
 		hello.cipherSuites = append(hello.cipherSuites, defaultCipherSuitesTLS13()...)
 
@@ -127,13 +127,13 @@ func (c *Conn) makeClientHello() (*clientHelloMsg, ecdheParameters, PrivateExcha
 		}
 
 		if privateCurve(curveID, config.PrivateKeyExchanges) {
-			keyExchange := config.PrivateKeyExchanges[curveID]
-			if keyExchange == nil {
+			pke = config.PrivateKeyExchanges[curveID]
+			if pke == nil {
 				return nil, nil, nil, errors.New("tls: PrivateKeyExchange is nil")
 			}
 
 			var share []byte
-			share, context, err = keyExchange.ClientShare()
+			share, err = pke.ClientShare()
 			if err != nil {
 				return nil, nil, nil, errors.New("tls: Failed to generate client share")
 			}
@@ -148,7 +148,7 @@ func (c *Conn) makeClientHello() (*clientHelloMsg, ecdheParameters, PrivateExcha
 		}
 	}
 
-	return hello, params, context, nil
+	return hello, params, pke, nil
 }
 
 func (c *Conn) clientHandshake() (err error) {
@@ -160,7 +160,7 @@ func (c *Conn) clientHandshake() (err error) {
 	// need to be reset.
 	c.didResume = false
 
-	hello, ecdheParams, context, err := c.makeClientHello()
+	hello, ecdheParams, pke, err := c.makeClientHello()
 	if err != nil {
 		return err
 	}
@@ -201,14 +201,14 @@ func (c *Conn) clientHandshake() (err error) {
 
 	if c.vers == VersionTLS13 {
 		hs := &clientHandshakeStateTLS13{
-			c:               c,
-			serverHello:     serverHello,
-			hello:           hello,
-			ecdheParams:     ecdheParams,
-			session:         session,
-			earlySecret:     earlySecret,
-			binderKey:       binderKey,
-			exchangeContext: context,
+			c:                  c,
+			serverHello:        serverHello,
+			hello:              hello,
+			ecdheParams:        ecdheParams,
+			session:            session,
+			earlySecret:        earlySecret,
+			binderKey:          binderKey,
+			privateKeyExchange: pke,
 		}
 
 		// In TLS 1.3, session tickets are delivered after the handshake.

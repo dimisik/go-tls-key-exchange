@@ -2066,7 +2066,7 @@ func TestClientRejectsNilPrivateKeyExchange(t *testing.T) {
 }
 
 func TestClientHandshakeWithPrivateKeyExchange(t *testing.T) {
-	// Tests the client correclty uses the private key exchange to
+	// Tests the client correctly uses the private key exchange to
 	// derive secrets.
 
 	c, s := localPipe(t)
@@ -2110,5 +2110,10 @@ func TestClientHandshakeWithPrivateKeyExchange(t *testing.T) {
 		t.Errorf("Error in client handshake: %q", err)
 	}
 
-	// TODO test for key material
+	if !bytes.Equal(clientKeyExchange.clientShare, serverKeyExchange.receivedClientShare) {
+		t.Error("Client share not propagated to server")
+	}
+	if !bytes.Equal(serverKeyExchange.serverShare, clientKeyExchange.receivedServerShare) {
+		t.Error("Server share not propagated to client")
+	}
 }

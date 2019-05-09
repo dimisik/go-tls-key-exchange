@@ -8,12 +8,13 @@ import (
 	"crypto/elliptic"
 	"crypto/hmac"
 	"errors"
-	"golang.org/x/crypto/cryptobyte"
-	"golang.org/x/crypto/curve25519"
-	"golang.org/x/crypto/hkdf"
 	"hash"
 	"io"
 	"math/big"
+
+	"golang.org/x/crypto/cryptobyte"
+	"golang.org/x/crypto/curve25519"
+	"golang.org/x/crypto/hkdf"
 )
 
 // This file contains the functions necessary to compute the TLS 1.3 key
@@ -151,13 +152,9 @@ const (
 )
 
 // privateCurve tests if the curve is within the ecdhe_private_use ranged defined in
-// RFC 8446, Section 4.2.7 and is supported by a PrivateKeyExchange.
-func privateCurve(id CurveID, privateKeyExchanges map[CurveID]PrivateKeyExchange) bool {
-	if id >= ecdhePrivateUseMin && id <= ecdhePrivateUseMax {
-		_, found := privateKeyExchanges[id]
-		return found
-	}
-	return false
+// RFC 8446, Section 4.2.7.
+func privateCurve(id CurveID) bool {
+	return id >= ecdhePrivateUseMin && id <= ecdhePrivateUseMax
 }
 
 type nistParameters struct {

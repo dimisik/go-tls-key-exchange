@@ -122,16 +122,21 @@ func (c *Conn) makeClientHello() (*clientHelloMsg, ecdheParameters, PrivateKeyEx
 		hello.cipherSuites = append(hello.cipherSuites, defaultCipherSuitesTLS13()...)
 
 		curveID := config.curvePreferences()[0]
-		if _, ok := curveForCurveID(curveID); curveID != X25519 && !ok && !privateCurve(curveID, config.PrivateKeyExchanges) {
-			return nil, nil, nil, errors.New("tls: CurvePreferences includes unsupported curve")
-		}
 
-		if privateCurve(curveID, config.PrivateKeyExchanges) {
-			pke = config.PrivateKeyExchanges[curveID]
+		if privateCurve(curveID) {
+			var found bool
+			pke, found = config.PrivateKeyExchanges[curveID]
+			if !found {
+				return nil, nil, nil, errors.New("tls: CurvePreferences includes unsupported curve")
+			}
 			if pke == nil {
 				return nil, nil, nil, errors.New("tls: PrivateKeyExchange is nil")
 			}
+		} else if _, ok := curveForCurveID(curveID); curveID != X25519 && !ok {
+			return nil, nil, nil, errors.New("tls: CurvePreferences includes unsupported curve")
+		}
 
+		if privateCurve(curveID) {
 			var share []byte
 			share, err = pke.ClientShare()
 			if err != nil {

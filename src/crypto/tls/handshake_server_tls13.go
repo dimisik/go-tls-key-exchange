@@ -203,18 +203,24 @@ GroupSelection:
 		clientKeyShare = &hs.clientHello.keyShares[0]
 	}
 
-	if _, ok := curveForCurveID(selectedGroup); selectedGroup != X25519 && !ok && !privateCurve(selectedGroup, c.config.PrivateKeyExchanges) {
-		c.sendAlert(alertInternalError)
-		return errors.New("tls: CurvePreferences includes unsupported curve")
-	}
-
-	if privateCurve(selectedGroup, c.config.PrivateKeyExchanges) {
-		keyExchange := c.config.PrivateKeyExchanges[selectedGroup]
+	var keyExchange PrivateKeyExchange
+	if privateCurve(selectedGroup) {
+		var found bool
+		keyExchange, found = c.config.PrivateKeyExchanges[selectedGroup]
+		if !found {
+			c.sendAlert(alertInternalError)
+			return errors.New("tls: CurvePreferences includes unsupported curve")
+		}
 		if keyExchange == nil {
 			c.sendAlert(alertInternalError)
 			return errors.New("tls: PrivateKeyExchange is nil")
 		}
+	} else if _, ok := curveForCurveID(selectedGroup); selectedGroup != X25519 && !ok {
+		c.sendAlert(alertInternalError)
+		return errors.New("tls: CurvePreferences includes unsupported curve")
+	}
 
+	if privateCurve(selectedGroup) {
 		secret, share, err := keyExchange.SecretFromClientShare(clientKeyShare.data)
 		if err != nil {
 			c.sendAlert(alertInternalError)

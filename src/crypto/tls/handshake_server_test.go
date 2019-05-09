@@ -18,6 +18,7 @@ import (
 	"io"
 	"io/ioutil"
 	"math/big"
+	"math/rand"
 	"net"
 	"os"
 	"os/exec"
@@ -1903,7 +1904,7 @@ func TestDontAllowNilPrivateKeyExchange(t *testing.T) {
 func TestPrivateKeyExchangeSuccessful(t *testing.T) {
 	// Test successful execution of a private key exchange
 
-	clientShare := []byte("clientShare")
+	clientShare := []byte("receivedClientShare")
 
 	clientHello := &clientHelloMsg{
 		vers:               VersionTLS12, // RFC 8446 states this must be set to TLS v1.2
@@ -1922,8 +1923,8 @@ func TestPrivateKeyExchangeSuccessful(t *testing.T) {
 
 	hs := testClientHelloTLS13(t, serverConfig, clientHello)
 
-	if !bytes.Equal(clientShare, keyExchange.clientShare) {
-		t.Errorf("expected %x for clientShare, got %x", clientShare, keyExchange.clientShare)
+	if !bytes.Equal(clientShare, keyExchange.receivedClientShare) {
+		t.Errorf("expected %x for receivedClientShare, got %x", clientShare, keyExchange.receivedClientShare)
 	}
 	if !bytes.Equal(keyExchange.secret, hs.sharedKey) {
 		t.Errorf("expected %x for sharedKey, got %x", keyExchange.secret, hs.sharedKey)
@@ -1937,23 +1938,48 @@ func TestPrivateKeyExchangeSuccessful(t *testing.T) {
 }
 
 type recordingKeyExchange struct {
-	t           *testing.T
-	secret      []byte
-	serverShare []byte
-	clientShare []byte
+	t                   *testing.T
+	secret              []byte
+	serverShare         []byte
+	receivedServerShare []byte
+	clientShare         []byte
+	receivedClientShare []byte
 }
 
-func (r *recordingKeyExchange) ClientShare() ([]byte, PrivateExchangeContext, error) {
-	panic("ClientShare called")
+func (r *recordingKeyExchange) ClientShare() ([]byte, error) {
+	r.clientShare = randomInsecureBytes(40)
+
+	// TODO - store something into the context which we rely upon later (to test context use)
+	return cloneBytes(r.clientShare), nil
 }
 
 func (r *recordingKeyExchange) SecretFromClientShare(clientShare []byte) (secret, serverShare []byte, err error) {
-	r.clientShare = clientShare
-	r.secret = []byte("secret")
-	r.serverShare = []byte("share")
-	return r.secret, r.serverShare, nil
+	r.receivedClientShare = cloneBytes(clientShare)
+
+	if r.secret == nil {
+		r.secret = randomInsecureBytes(48)
+	}
+	r.serverShare = randomInsecureBytes(40)
+	return cloneBytes(r.secret), cloneBytes(r.serverShare), nil
 }
 
-func (r *recordingKeyExchange) SecretFromServerShare(serverShare []byte, ctx PrivateExchangeContext) ([]byte, error) {
-	panic("SecretFromServerShare called")
+func (r *recordingKeyExchange) SecretFromServerShare(serverShare []byte) ([]byte, error) {
+	r.receivedServerShare = cloneBytes(serverShare)
+	if r.secret == nil {
+		r.secret = randomInsecureBytes(48)
+	}
+	return cloneBytes(r.secret), nil
+}
+
+func randomInsecureBytes(n int) []byte {
+	rand.Seed(time.Now().UnixNano())
+	result := make([]byte, n)
+	_, _ = rand.Read(result)
+	return result
+}
+
+func cloneBytes(b []byte) []byte {
+	result := make([]byte, len(b))
+	copy(result, b)
+	return result
 }

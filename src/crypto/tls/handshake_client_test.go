@@ -2032,3 +2032,83 @@ func TestCloseClientConnectionOnIdleServer(t *testing.T) {
 		t.Errorf("Error expected, but no error returned")
 	}
 }
+
+func testPrivateKeyExchangeFailure(t *testing.T, curveID CurveID, keyExchange PrivateKeyExchange, expectedError string) {
+	c, s := localPipe(t)
+
+	client := Client(c, &Config{
+		ServerName:          "foo",
+		CipherSuites:        defaultCipherSuitesTLS13(),
+		CurvePreferences:    []CurveID{curveID},
+		MinVersion:          VersionTLS13,
+		PrivateKeyExchanges: map[CurveID]PrivateKeyExchange{curveID: keyExchange},
+	})
+	err := client.Handshake()
+	s.Close()
+
+	if err == nil || !strings.Contains(err.Error(), expectedError) {
+		t.Errorf("Got error: %v; expected to match substring '%s'", err, expectedError)
+	}
+}
+
+func TestClientRejectsPrivateKeyExchangeOutOfRange(t *testing.T) {
+	// Test that a private key exchange is not allowed if it's outside the
+	// ecdhe_private_use range.
+
+	testPrivateKeyExchangeFailure(t, ecdhePrivateUseMin-1, dummyKeyExchangeHandler{},
+		"CurvePreferences includes unsupported curve")
+}
+
+func TestClientRejectsNilPrivateKeyExchange(t *testing.T) {
+	// Test that a private key exchange is not allowed if it's nil
+
+	testPrivateKeyExchangeFailure(t, ecdhePrivateUseMin, nil, "PrivateKeyExchange is nil")
+}
+
+func TestClientHandshakeWithPrivateKeyExchange(t *testing.T) {
+	// Tests the client correclty uses the private key exchange to
+	// derive secrets.
+
+	c, s := localPipe(t)
+	defer s.Close()
+	errChan := make(chan error, 1)
+
+	const curveID = ecdhePrivateUseMax
+	sharedSecret := []byte("shared secret")
+	clientKeyExchange := &recordingKeyExchange{secret: sharedSecret}
+	serverKeyExchange := &recordingKeyExchange{secret: sharedSecret}
+
+	go func() {
+		client := Client(c, &Config{
+			ServerName:          "foo",
+			CipherSuites:        allCipherSuitesTLS13(),
+			CurvePreferences:    []CurveID{curveID},
+			PrivateKeyExchanges: map[CurveID]PrivateKeyExchange{curveID: clientKeyExchange},
+			MinVersion:          VersionTLS13,
+			InsecureSkipVerify:  true,
+		})
+		errChan <- client.Handshake()
+	}()
+
+	server := Server(s, &Config{
+		CipherSuites:        allCipherSuitesTLS13(),
+		CurvePreferences:    []CurveID{curveID},
+		PrivateKeyExchanges: map[CurveID]PrivateKeyExchange{curveID: serverKeyExchange},
+		MinVersion:          VersionTLS13,
+		Certificates: []Certificate{{
+			Certificate: [][]byte{testRSACertificate, testRSACertificateIssuer},
+			PrivateKey:  testRSAPrivateKey,
+		}},
+	})
+
+	err := server.Handshake()
+	if err != nil {
+		t.Errorf("Error in server handshake: %q", err)
+	}
+
+	if err = <-errChan; err != nil {
+		t.Errorf("Error in client handshake: %q", err)
+	}
+
+	// TODO test for key material
+}

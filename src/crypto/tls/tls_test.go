@@ -692,7 +692,7 @@ func TestCloneFuncFields(t *testing.T) {
 // dummyKeyExchangeHandler is used in TestCloneNonFuncFields
 type dummyKeyExchangeHandler struct{}
 
-func (dummyKeyExchangeHandler) ClientShare() ([]byte, PrivateExchangeContext, error) {
+func (dummyKeyExchangeHandler) ClientShare() ([]byte, error) {
 	panic("not used")
 }
 
@@ -700,7 +700,7 @@ func (dummyKeyExchangeHandler) SecretFromClientShare(clientShare []byte) (secret
 	panic("not used")
 }
 
-func (dummyKeyExchangeHandler) SecretFromServerShare(serverShare []byte, ctx PrivateExchangeContext) ([]byte, error) {
+func (dummyKeyExchangeHandler) SecretFromServerShare(serverShare []byte) ([]byte, error) {
 	panic("not used")
 }
 

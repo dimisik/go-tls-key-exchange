@@ -1,5 +1,9 @@
 language: go
 
+# We explicitly build against 1.12.5
+go:
+  - 1.12.5
+
 # Skip default Go install step
 install: true
 

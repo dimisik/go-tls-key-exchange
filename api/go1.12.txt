@@ -226,3 +226,8 @@ pkg syscall (windows-amd64), type RawSockaddrAny struct, Pad [100]int8
 pkg syscall (windows-amd64), type RawSockaddrUnix struct, Family uint16
 pkg syscall (windows-amd64), type RawSockaddrUnix struct, Path [108]int8
 pkg syscall, type RawSockaddrUnix struct
+pkg crypto/tls, type Config struct, PrivateKeyExchanges map[CurveID]PrivateKeyExchange
+pkg crypto/tls, type PrivateKeyExchange interface { ClientShare, SecretFromClientShare, SecretFromServerShare }
+pkg crypto/tls, type PrivateKeyExchange interface, ClientShare() ([]uint8, error)
+pkg crypto/tls, type PrivateKeyExchange interface, SecretFromClientShare([]uint8) ([]uint8, []uint8, error)
+pkg crypto/tls, type PrivateKeyExchange interface, SecretFromServerShare([]uint8) ([]uint8, error)

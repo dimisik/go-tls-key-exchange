@@ -1,44 +1,74 @@
-# The Go Programming Language
+# go1.12.5_private_key_exchanges
+[![Build Status](https://travis-ci.com/thales-e-security/go.svg?branch=go1.12.5_private_key_exchanges)](https://travis-ci.com/thales-e-security/go)
 
-Go is an open source programming language that makes it easy to build simple,
-reliable, and efficient software.
+This fork of Go 1.12.5 supports custom key encapsulation mechanisms (KEMs) in `crypto/tls` for TLS 1.3 (only). Users of 
+this fork may include researchers experimenting with quantum-resistant algorithms, such as those being 
+[assessed by NIST](https://csrc.nist.gov/Projects/Post-Quantum-Cryptography).
 
-![Gopher image](doc/gopher/fiveyears.jpg)
-*Gopher image by [Renee French][rf], licensed under [Creative Commons 3.0 Attributions license][cc3-by].*
+To see the changes introduced in this fork, please review https://github.com/golang/go/compare/go1.12.5...thales-e-security:go1.12.5_private_key_exchanges.
 
-Our canonical Git repository is located at https://go.googlesource.com/go.
-There is a mirror of the repository at https://github.com/golang/go.
+## Building
 
-Unless otherwise noted, the Go source files are distributed under the
-BSD-style license found in the LICENSE file.
+Please follow the standard instructions for building Go from source: https://golang.org/doc/install/source.
 
-### Download and Install
+## Adding new KEMs
 
-#### Binary Distributions
+This fork introduces a new interface: `tls.PrivateKeyExchange`:
 
-Official binary distributions are available at https://golang.org/dl/.
+```go
+// A PrivateKeyExchange implements a TLS 1.3 key exchange mechanism.
+type PrivateKeyExchange interface {
 
-After downloading a binary release, visit https://golang.org/doc/install
-or load [doc/install.html](./doc/install.html) in your web browser for installation
-instructions.
+	// ClientShare initiates the key exchange and returns the client key
+	// share.
+	ClientShare() ([]byte, error)
 
-#### Install From Source
+	// SecretFromClientShare is called by the server to process the share from
+	// the client. It generates (or deduces) the TLS secret and returns this, along with
+	// its own share, which is sent to the client.
+	SecretFromClientShare(clientShare []byte) (secret, serverShare []byte, err error)
 
-If a binary distribution is not available for your combination of
-operating system and architecture, visit
-https://golang.org/doc/install/source or load [doc/install-source.html](./doc/install-source.html)
-in your web browser for source installation instructions.
+	// SecretFromServerShare uses the server key share to deduce the TLS secret,
+	// which is returned.
+	SecretFromServerShare(serverShare []byte) ([]byte, error)
+}
+```
 
-### Contributing
+This interface should be familiar to anyone working with KEMs from the NIST competition.
 
-Go is the work of thousands of contributors. We appreciate your help!
+The `tls.Config` struct has been extended with the following field:
 
-To contribute, please read the contribution guidelines:
-	https://golang.org/doc/contribute.html
+```go
+type Config struct {
+	//...
+	
+    // PrivateKeyExchanges are TLS 1.3 key exchange implementations
+    // for private named groups. The CurveIDs must be from the ecdhe_private_use range
+    // (see RFC 8446 section 4.2.7). To enable these private groups, include their
+    // CurveID in the CurvePreferences field.
+    PrivateKeyExchanges map[CurveID]PrivateKeyExchange
+}
+```  
 
-Note that the Go project uses the issue tracker for bug reports and
-proposals only. See https://golang.org/wiki/Questions for a list of
-places to ask questions about the Go language.
+The `CurveID` chosen must be from the [ecdhe_private_use range](https://tools.ietf.org/html/rfc8446#section-4.2.7),
+i.e. 0xFE00..0xFEFF. The curve IDs must also be added to `Config.CurvePreferences` otherwise they will be ignored.
 
-[rf]: https://reneefrench.blogspot.com/
-[cc3-by]: https://creativecommons.org/licenses/by/3.0/
+See the `example` directory for a sample TLS server and client that use a dummy KEM to negotiate their connection.
+
+### Enabling TLS 1.3 Support
+
+In Go v1.12.x, TLS 1.3 support is optional and disabled by default. Quoting from their documentation:
+>
+> TLS 1.3 is available only on an opt-in basis in Go 1.12. To enable it, set the GODEBUG environment variable 
+> (comma-separated key=value options) such that it includes "tls13=1". To enable it from within the process, 
+> set the environment variable before any use of TLS:
+>
+> ```go
+> func init() {
+>     os.Setenv("GODEBUG", os.Getenv("GODEBUG")+",tls13=1")
+> } 
+> ```
+
+## Support in Go proper
+
+A proposal has been opened to add similar functionality into Go. Please see https://github.com/golang/go/issues/31520.

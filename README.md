@@ -1,5 +1,5 @@
 # go1.12.5_private_key_exchanges
-[![Build Status](https://travis-ci.com/thales-e-security/go.svg?branch=go1.12.5_private_key_exchanges)](https://travis-ci.com/thales-e-security/go)
+[![Build Status](https://travis-ci.com/thales-e-security/go-tls-key-exchange.svg?branch=go1.12.5_private_key_exchanges)](https://travis-ci.com/thales-e-security/go-tls-key-exchange)
 
 This fork of Go 1.12.5 supports custom key encapsulation mechanisms (KEMs) in `crypto/tls` for TLS 1.3 (only). Users of 
 this fork may include researchers experimenting with quantum-resistant algorithms, such as those being 

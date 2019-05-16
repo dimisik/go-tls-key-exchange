@@ -11,6 +11,11 @@ To see the changes introduced in this fork, please review https://github.com/gol
 
 Please follow the standard instructions for building Go from source: https://golang.org/doc/install/source.
 
+## Example post-quantum key exchange
+
+See the [example](https://github.com/thales-e-security/go-tls-key-exchange/tree/go1.12.5_private_key_exchanges/example)
+directory for an example application that uses post-quantum crypto in a TLS 1.3 handshake.
+
 ## Adding new KEMs
 
 This fork introduces a new interface: `tls.PrivateKeyExchange`:
@@ -72,3 +77,5 @@ In Go v1.12.x, TLS 1.3 support is optional and disabled by default. Quoting from
 ## Support in Go proper
 
 A proposal has been opened to add similar functionality into Go. Please see https://github.com/golang/go/issues/31520.
+
+

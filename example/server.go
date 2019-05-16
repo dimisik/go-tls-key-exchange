@@ -7,7 +7,7 @@ package main
 import (
 	"bufio"
 	"crypto/tls"
-	"go-tls-test/common"
+	"example/common"
 	"log"
 	"net"
 	"os"
@@ -24,7 +24,7 @@ func main() {
 			},
 		},
 		CurvePreferences:    []tls.CurveID{common.CurveID},
-		PrivateKeyExchanges: map[tls.CurveID]tls.PrivateKeyExchange{common.CurveID: common.SimpleKeyExchange{}},
+		PrivateKeyExchanges: map[tls.CurveID]tls.PrivateKeyExchange{common.CurveID: &common.KyberKeyExchange{}},
 	}
 
 	ln, err := tls.Listen("tcp", ":8443", config)

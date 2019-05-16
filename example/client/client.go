@@ -6,7 +6,7 @@ package main
 
 import (
 	"crypto/tls"
-	"go-tls-test/common"
+	"example/common"
 	"log"
 	"os"
 )
@@ -17,7 +17,7 @@ func main() {
 	conf := &tls.Config{
 		MinVersion:          tls.VersionTLS13,
 		CurvePreferences:    []tls.CurveID{common.CurveID},
-		PrivateKeyExchanges: map[tls.CurveID]tls.PrivateKeyExchange{common.CurveID: common.SimpleKeyExchange{}},
+		PrivateKeyExchanges: map[tls.CurveID]tls.PrivateKeyExchange{common.CurveID: &common.KyberKeyExchange{}},
 		InsecureSkipVerify:  true,
 	}
 

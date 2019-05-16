@@ -8,8 +8,8 @@ https://github.com/open-quantum-safe/liboqs library.
 
 ### Install liboqs
 
-Follow [the instructions](https://github.com/open-quantum-safe/liboqs#building-and-running-liboqs-master-branch)  
-to build and install liboqs. This example code assumes you have installed liboqs into `/usr/local/liboqs`. 
+Follow [the instructions](https://github.com/open-quantum-safe/liboqs#building-and-running-liboqs-master-branch) to 
+build and install liboqs. This example code assumes you have installed liboqs into `/usr/local/liboqs`. 
 This is achieved by calling `configure` like so:
 
 ```go
@@ -42,7 +42,7 @@ go build -o run-client ./client/...
 In one terminal, execute `./run-server`. In another terminal, execute `./run-client`. The output should look
 like this:
 
-*Server*
+**Server**
 
 ```
 $ ./run-server 
@@ -58,7 +58,7 @@ hello
 
 (You will need to Ctrl-c to close the server)
 
-*Client*
+**Client**
 
 ```
 $ ./run-client 

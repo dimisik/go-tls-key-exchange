@@ -78,4 +78,8 @@ In Go v1.12.x, TLS 1.3 support is optional and disabled by default. Quoting from
 
 A proposal has been opened to add similar functionality into Go. Please see https://github.com/golang/go/issues/31520.
 
+## Related Projects
 
+[goliboqs](https://github.com/thales-e-security/goliboqs) provides quantum-resistant key exchange mechanisms for Go.
+The [example code](https://github.com/thales-e-security/go-tls-key-exchange/tree/go1.12.5_private_key_exchanges/example) 
+in this project uses goliboqs to demonstrate quantum-resistant TLS.

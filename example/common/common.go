@@ -13,7 +13,7 @@ import (
 )
 
 const CurveID = 0xFE00
-const libPath = "/usr/local/liboqs/lib/liboqs.so"
+const libPath = "/usr/local/lib/liboqs.so"
 
 type KyberKeyExchange struct {
 	privateKey []byte
@@ -25,7 +25,7 @@ func loadKEM() (*goliboqs.Lib, goliboqs.Kem, error) {
 		return nil, nil, err
 	}
 
-	kem, err := lib.GetKem(goliboqs.KemKyber512)
+	kem, err := lib.GetKem(goliboqs.KemKyber1024)
 	if err != nil {
 		_ = lib.Close()
 		return nil, nil, err

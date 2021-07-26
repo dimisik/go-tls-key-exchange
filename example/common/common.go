@@ -25,7 +25,7 @@ func loadKEM() (*goliboqs.Lib, goliboqs.Kem, error) {
 		return nil, nil, err
 	}
 
-	kem, err := lib.GetKem(goliboqs.KemKyber1024)
+	kem, err := lib.GetKem(goliboqs.OQS_KEM_alg_kyber_768)
 	if err != nil {
 		_ = lib.Close()
 		return nil, nil, err

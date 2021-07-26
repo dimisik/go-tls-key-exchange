@@ -56,7 +56,7 @@ func handleConnection(conn net.Conn) {
 
 		println(msg)
 
-		n, err := conn.Write([]byte("world\n"))
+		n, err := conn.Write([]byte("PQ-KEM-enabled TLS 1.3 encrypted tunnel established.\n"))
 		if err != nil {
 			log.Println(n, err)
 			return

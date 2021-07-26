@@ -28,7 +28,7 @@ func main() {
 	}
 	defer conn.Close()
 
-	n, err := conn.Write([]byte("hello\n"))
+	n, err := conn.Write([]byte("PQ-KEM-enabled TLS 1.3 encrypted tunnel established.\n"))
 	if err != nil {
 		log.Println(n, err)
 		return
